@@ -12,3 +12,6 @@
 .login-screen{position:fixed;inset:0;z-index:100;background:linear-gradient(145deg,#0f172a,#334155);display:flex;align-items:center;justify-content:center;padding:22px}
 .login-card{width:min(420px,100%);background:#fff;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:14px}
 .login-card .login-icon{font-size:48px}.login-card small{letter-spacing:.14em;color:#64748b;font-weight:800}.login-card h2{margin:0;font-size:27px}.login-card label{margin:0}.login-card p{margin:0;color:#b91c1c;font-size:12px}.header-actions{display:flex;gap:8px}
+
+.login-message{min-height:18px;line-height:1.35}
+.login-help{display:block;color:#64748b!important;letter-spacing:0!important;font-weight:600!important;line-height:1.35}

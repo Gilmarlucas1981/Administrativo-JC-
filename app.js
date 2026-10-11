@@ -18,25 +18,68 @@ const monthStart=()=>today().slice(0,7)+"-01";
 const uid=()=>crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random();
 
 async function boot(){
-  bindLogin();
-  const {data:{session}}=await sb.auth.getSession();
-  if(session){
-    loginScreen.classList.add("hidden");
-    await loadCloud();
-  }
   setupUI();
-}
-function bindLogin(){
-  loginForm.onsubmit=async e=>{
+
+  const form=document.getElementById("loginForm");
+  const emailEl=document.getElementById("loginEmail");
+  const passwordEl=document.getElementById("loginPassword");
+  const messageEl=document.getElementById("loginMessage");
+  const screenEl=document.getElementById("loginScreen");
+  const logoutEl=document.getElementById("logoutBtn");
+
+  async function enterApp(session){
+    if(!session)return;
+    messageEl.textContent="Login confirmado. Carregando...";
+    try{
+      await loadCloud();
+      screenEl.classList.add("hidden");
+      messageEl.textContent="";
+    }catch(err){
+      screenEl.classList.remove("hidden");
+      messageEl.textContent="Login feito, mas houve erro ao carregar os dados: "+(err?.message||String(err));
+    }
+  }
+
+  form.addEventListener("submit",async e=>{
     e.preventDefault();
-    loginMessage.textContent="Entrando...";
-    const {error}=await sb.auth.signInWithPassword({email:loginEmail.value,password:loginPassword.value});
-    if(error){loginMessage.textContent="E-mail ou senha inválidos.";return}
-    loginMessage.textContent="";
-    loginScreen.classList.add("hidden");
-    await loadCloud();
-  };
-  logoutBtn.onclick=async()=>{await sb.auth.signOut();loginScreen.classList.remove("hidden")};
+    const email=(emailEl.value||"").trim();
+    const password=passwordEl.value||"";
+    if(!email||!password){
+      messageEl.textContent="Preencha o e-mail e a senha.";
+      return;
+    }
+    messageEl.textContent="Verificando acesso...";
+    const {data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error){
+      messageEl.textContent="Erro no login: "+error.message;
+      return;
+    }
+    if(!data?.session){
+      messageEl.textContent="O Supabase não retornou uma sessão válida.";
+      return;
+    }
+    await enterApp(data.session);
+  });
+
+  logoutEl.addEventListener("click",async()=>{
+    await sb.auth.signOut();
+    screenEl.classList.remove("hidden");
+    passwordEl.value="";
+    messageEl.textContent="";
+  });
+
+  sb.auth.onAuthStateChange((event,session)=>{
+    if(event==="SIGNED_OUT"){
+      screenEl.classList.remove("hidden");
+    }
+  });
+
+  const {data:{session},error}=await sb.auth.getSession();
+  if(error){
+    messageEl.textContent="Erro ao verificar sessão: "+error.message;
+    return;
+  }
+  if(session)await enterApp(session);
 }
 function setupUI(){
   dashStart.value=monthStart();dashEnd.value=today();dreStart.value=monthStart();dreEnd.value=today();
@@ -54,7 +97,7 @@ async function loadCloud(){
     sb.from("jc_emprestimos").select("*").order("created_at",{ascending:false})
   ]);
   const err=[r,p,l].find(x=>x.error);
-  if(err){alert("Erro ao carregar dados: "+err.error.message);return}
+  if(err)throw new Error(err.error.message);
   state.receivables=(r.data||[]).map(x=>({
     id:x.id,company:x.empresa,contract:x.numero_contrato||"",description:x.descricao||"",
     periodStart:x.periodo_inicio||"",periodEnd:x.periodo_fim||"",due:x.vencimento,
