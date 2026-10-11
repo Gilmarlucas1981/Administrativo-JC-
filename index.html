@@ -211,6 +211,7 @@
   <div class="page-head"><h2>Obrigações & dívidas</h2><p>Empréstimos, financiamentos, impostos e dívidas ativas.</p></div>
   <div class="tabs">
     <button class="active" onclick="obTab('loans',this)">Empréstimos</button>
+    <button onclick="obTab('payroll',this)">Folha & Diárias</button>
     <button onclick="obTab('taxes',this)">Impostos</button>
     <button onclick="obTab('overdue',this)">Dívidas atrasadas</button>
   </div>
@@ -234,6 +235,53 @@
       <button class="primary" onclick="saveLoan()">Salvar empréstimo</button>
     </div>
     <div id="loanList"></div>
+  </div>
+
+
+  <div id="obPayroll" class="obpane">
+    <div class="card form">
+      <h3 id="payrollFormTitle">Folha de pagamento</h3>
+      <div class="grid2">
+        <label>Colaborador<input id="fEmployee" placeholder="Nome do colaborador"></label>
+        <label>Função<input id="fRole" placeholder="Ex.: Motorista, engenheiro"></label>
+      </div>
+      <div class="grid2">
+        <label>Centro de custo / Obra<input id="fCostCenter" placeholder="Ex.: Rondon, CSM, Escritório"></label>
+        <label>Competência<input id="fCompetence" type="month"></label>
+      </div>
+      <div class="grid2">
+        <label>Salário base (R$)<input id="fSalary" type="number" step="0.01" oninput="previewPayroll()"></label>
+        <label>Vencimento<input id="fDue" type="date"></label>
+      </div>
+      <div class="grid2">
+        <label>Qtd. diárias<input id="fDailyQty" type="number" step="0.01" oninput="previewPayroll()"></label>
+        <label>Valor da diária (R$)<input id="fDailyValue" type="number" step="0.01" oninput="previewPayroll()"></label>
+      </div>
+      <div class="grid2">
+        <label>Horas extras<input id="fOvertimeQty" type="number" step="0.01" oninput="previewPayroll()"></label>
+        <label>Valor hora extra (R$)<input id="fOvertimeValue" type="number" step="0.01" oninput="previewPayroll()"></label>
+      </div>
+      <div class="grid2">
+        <label>Outros adicionais (R$)<input id="fOther" type="number" step="0.01" oninput="previewPayroll()"></label>
+        <label>Descontos (R$)<input id="fDiscount" type="number" step="0.01" oninput="previewPayroll()"></label>
+      </div>
+      <div class="grid2">
+        <label>Status
+          <select id="fStatus">
+            <option value="pendente">Pendente</option>
+            <option value="pago">Pago</option>
+          </select>
+        </label>
+        <label>Data do pagamento<input id="fPaidDate" type="date"></label>
+      </div>
+      <label>Observação<textarea id="fNotes"></textarea></label>
+      <div id="payrollPreview" class="payroll-preview"></div>
+      <div class="actions">
+        <button class="primary" onclick="savePayroll()">Salvar folha</button>
+        <button id="cancelPayrollEdit" class="secondary hidden" onclick="resetPayroll()">Cancelar edição</button>
+      </div>
+    </div>
+    <div id="payrollList"></div>
   </div>
 
   <div id="obTaxes" class="obpane">

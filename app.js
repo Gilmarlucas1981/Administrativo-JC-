@@ -9,8 +9,8 @@ const SECTORS={
   "Outros":["Despesas diversas","Acordos","Multas","Custas","Outros"]
 };
 
-let state={receivables:[],payables:[],loans:[]};
-let editR=null,editP=null,dailyTab='all';
+let state={receivables:[],payables:[],loans:[],payroll:[]};
+let editR=null,editP=null,editF=null,dailyTab='all';
 
 const brl=v=>Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const today=()=>new Date().toISOString().slice(0,10);
@@ -85,18 +85,19 @@ function setupUI(){
   dashStart.value=monthStart();dashEnd.value=today();dreStart.value=monthStart();dreEnd.value=today();
   rPeriodStart.value=monthStart();rPeriodEnd.value=today();rDue.value=today();
   pCompetence.value=today().slice(0,7);pDue.value=today();pDue2.value="";pPaidDate.value="";
-  dailyPaymentDate.value=today();agendaMonth.value=today().slice(0,7);lDue.value=today();
+  dailyPaymentDate.value=today();agendaMonth.value=today().slice(0,7);fCompetence.value=today().slice(0,7);fDue.value=today();fPaidDate.value="";lDue.value=today();
   pSector.innerHTML=Object.keys(SECTORS).map(x=>`<option>${x}</option>`).join("");
   pSectorFilter.innerHTML='<option value="">Todos os setores</option>'+Object.keys(SECTORS).map(x=>`<option>${x}</option>`).join("");
   fillPayableCategories();
 }
 async function loadCloud(){
-  const [r,p,l]=await Promise.all([
+  const [r,p,l,f]=await Promise.all([
     sb.from("jc_contas_receber").select("*").order("vencimento",{ascending:false}),
     sb.from("jc_contas_pagar").select("*").order("primeiro_vencimento",{ascending:false}),
-    sb.from("jc_emprestimos").select("*").order("created_at",{ascending:false})
+    sb.from("jc_emprestimos").select("*").order("created_at",{ascending:false}),
+    sb.from("jc_folha_pagamentos").select("*").order("vencimento",{ascending:false})
   ]);
-  const err=[r,p,l].find(x=>x.error);
+  const err=[r,p,l,f].find(x=>x.error);
   if(err)throw new Error(err.error.message);
   state.receivables=(r.data||[]).map(x=>({
     id:x.id,company:x.empresa,contract:x.numero_contrato||"",description:x.descricao||"",
@@ -114,6 +115,13 @@ async function loadCloud(){
     balance:Number(x.saldo_devedor||0),installment:Number(x.parcela_mensal||0),
     due:x.proximo_vencimento||"",notes:x.observacao||"",active:x.ativo
   }));
+  state.payroll=(f.data||[]).map(x=>({
+    id:x.id,employee:x.colaborador,role:x.funcao||"",costCenter:x.centro_custo||"",competence:x.competencia||"",
+    salary:Number(x.salario_base||0),dailyQty:Number(x.diarias_qtd||0),dailyValue:Number(x.diaria_valor||0),
+    overtimeQty:Number(x.horas_extras_qtd||0),overtimeValue:Number(x.hora_extra_valor||0),
+    other:Number(x.outros_adicionais||0),discount:Number(x.descontos||0),due:x.vencimento,
+    status:x.status||"pendente",paidDate:x.data_pagamento||"",notes:x.observacao||""
+  }));
   renderAll();
 }
 function go(v){document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));document.getElementById(v).classList.add("active");scrollTo(0,0);renderAll();if(v==="dailyPayments")renderDailyPayments()}
@@ -127,7 +135,7 @@ function dueSoon(p,days=3){
   const diff=Math.ceil((due-now)/86400000);
   return diff>=0&&diff<=days;
 }
-function renderAll(){renderDashboard();renderMonthlyForecast();renderReceivables();renderPayables();renderDailyPayments();renderDRE();renderLoans();renderOverdue()}
+function renderAll(){renderDashboard();renderMonthlyForecast();renderReceivables();renderPayables();renderDailyPayments();renderDRE();renderLoans();renderPayroll();renderOverdue()}
 
 
 function monthBounds(monthStr){
@@ -148,14 +156,15 @@ function monthFinancialSummary(monthStr){
   const {start,end}=monthBounds(monthStr);
   const rec=state.receivables.filter(x=>x.due>=start&&x.due<=end);
   const pay=state.payables.filter(x=>effectiveDue(x)>=start&&effectiveDue(x)<=end);
+  const payroll=state.payroll.filter(x=>x.due>=start&&x.due<=end);
 
   const receivePlanned=rec.reduce((s,x)=>s+Number(x.amount||0),0);
   const received=rec.reduce((s,x)=>s+Number(x.received||0),0);
   const receiveOpen=rec.reduce((s,x)=>s+Math.max(0,Number(x.amount||0)-Number(x.received||0)),0);
 
-  const payPlanned=pay.reduce((s,x)=>s+Number(x.amount||0),0);
-  const paid=pay.filter(x=>x.status==='pago').reduce((s,x)=>s+Number(x.amount||0),0);
-  const payOpen=pay.filter(x=>x.status!=='pago').reduce((s,x)=>s+Number(x.amount||0),0);
+  const payPlanned=pay.reduce((s,x)=>s+Number(x.amount||0),0)+payroll.reduce((s,x)=>s+payrollTotal(x),0);
+  const paid=pay.filter(x=>x.status==='pago').reduce((s,x)=>s+Number(x.amount||0),0)+payroll.filter(x=>x.status==='pago').reduce((s,x)=>s+payrollTotal(x),0);
+  const payOpen=pay.filter(x=>x.status!=='pago').reduce((s,x)=>s+Number(x.amount||0),0)+payroll.filter(x=>x.status!=='pago').reduce((s,x)=>s+payrollTotal(x),0);
 
   return {
     month:monthStr,receivePlanned,received,receiveOpen,payPlanned,paid,payOpen,
@@ -210,6 +219,16 @@ function renderMonthlyForecast(){
       status:x.status
     }));
 
+  state.payroll
+    .filter(x=>x.due>=start&&x.due<=end)
+    .forEach(x=>events.push({
+      date:x.due,type:'saida',
+      title:`Folha · ${x.employee}`,
+      meta:`${x.role||"Sem função"} · ${x.costCenter||"Sem centro de custo"}`,
+      amount:payrollTotal(x),
+      status:x.status
+    }));
+
   events.sort((a,b)=>a.date.localeCompare(b.date)||(a.type==='entrada'?-1:1));
   let running=0;
   financialAgenda.innerHTML=events.map(ev=>{
@@ -226,6 +245,64 @@ function renderMonthlyForecast(){
       </div>
     </div>`;
   }).join('')||'<div class="meta">Nenhuma entrada ou saída prevista para este mês.</div>';
+}
+
+
+function payrollTotal(x){
+  return Number(x.salary||0)+(Number(x.dailyQty||0)*Number(x.dailyValue||0))+(Number(x.overtimeQty||0)*Number(x.overtimeValue||0))+Number(x.other||0)-Number(x.discount||0);
+}
+function previewPayroll(){
+  if(!window.payrollPreview)return;
+  const base=Number(fSalary.value||0),daily=Number(fDailyQty.value||0)*Number(fDailyValue.value||0),
+        overtime=Number(fOvertimeQty.value||0)*Number(fOvertimeValue.value||0),
+        other=Number(fOther.value||0),discount=Number(fDiscount.value||0),total=base+daily+overtime+other-discount;
+  payrollPreview.innerHTML=`<div><span>Salário</span><b>${brl(base)}</b></div><div><span>Diárias</span><b>${brl(daily)}</b></div><div><span>Horas extras</span><b>${brl(overtime)}</b></div><div><span>Outros</span><b>${brl(other)}</b></div><div><span>Descontos</span><b>- ${brl(discount)}</b></div><div class="payroll-total"><span>Total</span><b>${brl(total)}</b></div>`;
+}
+async function savePayroll(){
+  const employee=fEmployee.value.trim();
+  if(!employee)return alert("Informe o colaborador.");
+  const payload={
+    colaborador:employee,funcao:fRole.value.trim(),centro_custo:fCostCenter.value.trim(),competencia:fCompetence.value,
+    salario_base:Number(fSalary.value||0),diarias_qtd:Number(fDailyQty.value||0),diaria_valor:Number(fDailyValue.value||0),
+    horas_extras_qtd:Number(fOvertimeQty.value||0),hora_extra_valor:Number(fOvertimeValue.value||0),
+    outros_adicionais:Number(fOther.value||0),descontos:Number(fDiscount.value||0),vencimento:fDue.value,
+    status:fStatus.value,data_pagamento:fStatus.value==="pago"?(fPaidDate.value||today()):(fPaidDate.value||null),observacao:fNotes.value.trim()
+  };
+  let q=editF?sb.from("jc_folha_pagamentos").update(payload).eq("id",editF):sb.from("jc_folha_pagamentos").insert(payload);
+  const {error}=await q;if(error)return alert(error.message);
+  resetPayroll();await loadCloud();
+}
+function editPayroll(id){
+  const x=state.payroll.find(v=>String(v.id)===String(id));if(!x)return;
+  editF=x.id;payrollFormTitle.textContent="Editar folha";cancelPayrollEdit.classList.remove("hidden");
+  fEmployee.value=x.employee;fRole.value=x.role;fCostCenter.value=x.costCenter;fCompetence.value=x.competence;
+  fSalary.value=x.salary;fDailyQty.value=x.dailyQty;fDailyValue.value=x.dailyValue;fOvertimeQty.value=x.overtimeQty;
+  fOvertimeValue.value=x.overtimeValue;fOther.value=x.other;fDiscount.value=x.discount;fDue.value=x.due;fStatus.value=x.status;fPaidDate.value=x.paidDate||"";fNotes.value=x.notes||"";previewPayroll();scrollTo(0,0);
+}
+async function deletePayroll(id){
+  if(!confirm("Excluir lançamento da folha?"))return;
+  const {error}=await sb.from("jc_folha_pagamentos").delete().eq("id",id);if(error)return alert(error.message);
+  await loadCloud();
+}
+async function markPayrollPaid(id){
+  const dt=prompt("Data do pagamento (AAAA-MM-DD):",today());if(!dt)return;
+  const {error}=await sb.from("jc_folha_pagamentos").update({status:"pago",data_pagamento:dt}).eq("id",id);if(error)return alert(error.message);
+  await loadCloud();
+}
+function resetPayroll(){
+  editF=null;payrollFormTitle.textContent="Folha de pagamento";cancelPayrollEdit.classList.add("hidden");
+  fEmployee.value="";fRole.value="";fCostCenter.value="";fSalary.value="";fDailyQty.value="";fDailyValue.value="";
+  fOvertimeQty.value="";fOvertimeValue.value="";fOther.value="";fDiscount.value="";fStatus.value="pendente";fPaidDate.value="";fNotes.value="";previewPayroll();
+}
+function renderPayroll(){
+  if(!window.payrollList)return;
+  payrollList.innerHTML=state.payroll.map(x=>{
+    const total=payrollTotal(x),daily=x.dailyQty*x.dailyValue,overtime=x.overtimeQty*x.overtimeValue;
+    return `<div class="item-card"><div class="head"><div><h3>${x.employee}</h3><div class="meta">${x.role||"Sem função"} · ${x.costCenter||"Sem centro de custo"}</div></div><div class="money">${brl(total)}</div></div>
+    <div class="payroll-mini"><div><span>Salário</span><b>${brl(x.salary)}</b></div><div><span>Diárias</span><b>${brl(daily)}</b></div><div><span>Horas extras</span><b>${brl(overtime)}</b></div><div><span>Vencimento</span><b>${x.due?.split("-").reverse().join("/")||"-"}</b></div></div>
+    <span class="status ${x.status}">${x.status}</span>${x.paidDate?`<div class="paid-note">Pago em ${x.paidDate.split("-").reverse().join("/")}</div>`:""}
+    <div class="mini-actions">${x.status!=="pago"?`<button class="pay-btn" onclick="markPayrollPaid('${x.id}')">Dar baixa</button>`:""}<button onclick="editPayroll('${x.id}')">Editar</button><button class="danger" onclick="deletePayroll('${x.id}')">Excluir</button></div></div>`
+  }).join("")||'<div class="card meta">Nenhum lançamento de folha.</div>';
 }
 
 function renderDashboard(){
@@ -333,7 +410,12 @@ function renderDailyPayments(){
   const due=state.payables.filter(x=>x.status!=="pago"&&(x.due===d||x.due2===d));
   const paid=state.payables.filter(x=>x.status==="pago"&&x.paidDate===d);
   const ov=state.payables.filter(x=>overdue(x)&&effectiveDue(x)<=d);
-  const dueValue=due.reduce((a,x)=>a+x.amount,0),paidValue=paid.reduce((a,x)=>a+x.amount,0),ovValue=ov.reduce((a,x)=>a+x.amount,0);
+  const payrollDue=state.payroll.filter(x=>x.status!=="pago"&&x.due===d);
+  const payrollPaid=state.payroll.filter(x=>x.status==="pago"&&x.paidDate===d);
+  const payrollOver=state.payroll.filter(x=>x.status!=="pago"&&x.due<d);
+  const dueValue=due.reduce((a,x)=>a+x.amount,0)+payrollDue.reduce((a,x)=>a+payrollTotal(x),0),
+        paidValue=paid.reduce((a,x)=>a+x.amount,0)+payrollPaid.reduce((a,x)=>a+payrollTotal(x),0),
+        ovValue=ov.reduce((a,x)=>a+x.amount,0)+payrollOver.reduce((a,x)=>a+payrollTotal(x),0);
   dailyPaymentKpis.innerHTML=`<div class="kpi"><span>Vence no dia</span><b>${brl(dueValue)}</b></div><div class="kpi"><span>Pago no dia</span><b class="good">${brl(paidValue)}</b></div><div class="kpi"><span>Atrasado</span><b class="bad">${brl(ovValue)}</b></div><div class="kpi"><span>Qtd. pagamentos</span><b>${paid.length}</b></div>`;
   let arr=dailyTab==="due"?due:dailyTab==="paid"?paid:dailyTab==="overdue"?ov:[...new Map([...due,...paid,...ov].map(x=>[x.id,x])).values()];
   dailyPaymentList.innerHTML=arr.map(x=>{
@@ -346,6 +428,8 @@ function renderDRE(){
   const r=state.receivables.filter(x=>inRange(x.periodEnd||x.due,s,e));
   const p=state.payables.filter(x=>inRange((x.competence||"")+"-01",s,e));
   const receita=r.reduce((a,x)=>a+x.amount,0),by={};p.forEach(x=>by[x.sector]=(by[x.sector]||0)+x.amount);
+  const payrollValue=state.payroll.filter(x=>x.due>=s&&x.due<=e).reduce((a,x)=>a+payrollTotal(x),0);
+  if(payrollValue)by["Folha de pagamento"]=payrollValue;
   const expenses=Object.values(by).reduce((a,v)=>a+v,0),res=receita-expenses,margin=receita?res/receita:0;
   dreContent.innerHTML=`<div class="card"><div class="dre-row total"><span>RECEITA BRUTA</span><b>${brl(receita)}</b></div>${Object.entries(by).map(([k,v])=>`<div class="dre-row"><span>${k}</span><b>${brl(v)}</b></div>`).join("")}<div class="dre-row total"><span>TOTAL DESPESAS</span><b>${brl(expenses)}</b></div></div><div class="card"><div class="dre-row total"><span>RESULTADO</span><b class="${res>=0?"good":"bad"}">${brl(res)}</b></div><div class="dre-row"><span>Margem</span><b>${(margin*100).toFixed(1)}%</b></div></div>`;
 }
