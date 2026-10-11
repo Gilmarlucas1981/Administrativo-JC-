@@ -85,7 +85,7 @@ function setupUI(){
   dashStart.value=monthStart();dashEnd.value=today();dreStart.value=monthStart();dreEnd.value=today();
   rPeriodStart.value=monthStart();rPeriodEnd.value=today();rDue.value=today();
   pCompetence.value=today().slice(0,7);pDue.value=today();pDue2.value="";pPaidDate.value="";
-  dailyPaymentDate.value=today();lDue.value=today();
+  dailyPaymentDate.value=today();agendaMonth.value=today().slice(0,7);lDue.value=today();
   pSector.innerHTML=Object.keys(SECTORS).map(x=>`<option>${x}</option>`).join("");
   pSectorFilter.innerHTML='<option value="">Todos os setores</option>'+Object.keys(SECTORS).map(x=>`<option>${x}</option>`).join("");
   fillPayableCategories();
@@ -127,7 +127,106 @@ function dueSoon(p,days=3){
   const diff=Math.ceil((due-now)/86400000);
   return diff>=0&&diff<=days;
 }
-function renderAll(){renderDashboard();renderReceivables();renderPayables();renderDailyPayments();renderDRE();renderLoans();renderOverdue()}
+function renderAll(){renderDashboard();renderMonthlyForecast();renderReceivables();renderPayables();renderDailyPayments();renderDRE();renderLoans();renderOverdue()}
+
+
+function monthBounds(monthStr){
+  const [y,m]=monthStr.split('-').map(Number);
+  const last=new Date(y,m,0).getDate();
+  return {start:`${y}-${String(m).padStart(2,'0')}-01`,end:`${y}-${String(m).padStart(2,'0')}-${String(last).padStart(2,'0')}`};
+}
+function addMonthStr(monthStr,n){
+  const [y,m]=monthStr.split('-').map(Number);
+  const d=new Date(y,m-1+n,1,12,0,0);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function monthLabel(monthStr){
+  const [y,m]=monthStr.split('-').map(Number);
+  return new Date(y,m-1,1,12,0,0).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+}
+function monthFinancialSummary(monthStr){
+  const {start,end}=monthBounds(monthStr);
+  const rec=state.receivables.filter(x=>x.due>=start&&x.due<=end);
+  const pay=state.payables.filter(x=>effectiveDue(x)>=start&&effectiveDue(x)<=end);
+
+  const receivePlanned=rec.reduce((s,x)=>s+Number(x.amount||0),0);
+  const received=rec.reduce((s,x)=>s+Number(x.received||0),0);
+  const receiveOpen=rec.reduce((s,x)=>s+Math.max(0,Number(x.amount||0)-Number(x.received||0)),0);
+
+  const payPlanned=pay.reduce((s,x)=>s+Number(x.amount||0),0);
+  const paid=pay.filter(x=>x.status==='pago').reduce((s,x)=>s+Number(x.amount||0),0);
+  const payOpen=pay.filter(x=>x.status!=='pago').reduce((s,x)=>s+Number(x.amount||0),0);
+
+  return {
+    month:monthStr,receivePlanned,received,receiveOpen,payPlanned,paid,payOpen,
+    projected:receivePlanned-payPlanned,
+    realized:received-paid
+  };
+}
+function forecastCard(x,title){
+  return `<div class="forecast-month">
+    <div class="forecast-title"><span>${title}</span><b>${monthLabel(x.month)}</b></div>
+    <div class="forecast-values">
+      <div><span>A receber previsto</span><b class="good">${brl(x.receivePlanned)}</b></div>
+      <div><span>A pagar previsto</span><b class="warn">${brl(x.payPlanned)}</b></div>
+      <div><span>Saldo projetado</span><b class="${x.projected>=0?'good':'bad'}">${brl(x.projected)}</b></div>
+      <div><span>Já recebido</span><b>${brl(x.received)}</b></div>
+      <div><span>Já pago</span><b>${brl(x.paid)}</b></div>
+      <div><span>Saldo realizado</span><b class="${x.realized>=0?'good':'bad'}">${brl(x.realized)}</b></div>
+      <div><span>Ainda a receber</span><b>${brl(x.receiveOpen)}</b></div>
+      <div><span>Ainda a pagar</span><b>${brl(x.payOpen)}</b></div>
+    </div>
+  </div>`;
+}
+function renderMonthlyForecast(){
+  if(!window.monthlyForecast)return;
+  const current=today().slice(0,7);
+  const next=addMonthStr(current,1);
+  const a=monthFinancialSummary(current),b=monthFinancialSummary(next);
+  monthlyForecast.innerHTML=forecastCard(a,'Mês atual')+forecastCard(b,'Próximo mês');
+
+  if(!agendaMonth.value)agendaMonth.value=current;
+  const m=agendaMonth.value;
+  const {start,end}=monthBounds(m);
+  const events=[];
+
+  state.receivables
+    .filter(x=>x.due>=start&&x.due<=end)
+    .forEach(x=>events.push({
+      date:x.due,type:'entrada',
+      title:x.company+(x.description?` · ${x.description}`:''),
+      meta:x.contract||'Sem contrato',
+      amount:Math.max(0,Number(x.amount||0)-Number(x.received||0)),
+      status:x.status
+    }));
+
+  state.payables
+    .filter(x=>effectiveDue(x)>=start&&effectiveDue(x)<=end)
+    .forEach(x=>events.push({
+      date:effectiveDue(x),type:'saida',
+      title:x.description,
+      meta:`${x.sector} · ${x.category}${x.vendor?` · ${x.vendor}`:''}`,
+      amount:Number(x.amount||0),
+      status:x.status
+    }));
+
+  events.sort((a,b)=>a.date.localeCompare(b.date)||(a.type==='entrada'?-1:1));
+  let running=0;
+  financialAgenda.innerHTML=events.map(ev=>{
+    running += ev.type==='entrada'?ev.amount:-ev.amount;
+    return `<div class="agenda-row">
+      <div class="agenda-date">${ev.date.split('-').slice(1).reverse().join('/')}</div>
+      <div class="agenda-main">
+        <b>${ev.title}</b>
+        <small>${ev.meta}</small>
+      </div>
+      <div class="agenda-values">
+        <b class="${ev.type==='entrada'?'good':'bad'}">${ev.type==='entrada'?'+':'-'} ${brl(ev.amount)}</b>
+        <small>Saldo: ${brl(running)}</small>
+      </div>
+    </div>`;
+  }).join('')||'<div class="meta">Nenhuma entrada ou saída prevista para este mês.</div>';
+}
 
 function renderDashboard(){
   const s=dashStart.value,e=dashEnd.value;

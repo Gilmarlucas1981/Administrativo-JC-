@@ -47,6 +47,31 @@
 
   <div id="kpis" class="kpis"></div>
 
+  <div class="card cashflow-card">
+    <div class="section-head">
+      <div>
+        <small>FLUXO FINANCEIRO</small>
+        <h3>Este mês e próximo mês</h3>
+      </div>
+    </div>
+    <div id="monthlyForecast" class="forecast-grid"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-head">
+      <div>
+        <small>AGENDA FINANCEIRA</small>
+        <h3>Entradas e saídas previstas</h3>
+      </div>
+    </div>
+    <div class="agenda-controls">
+      <label>Mês
+        <input id="agendaMonth" type="month" onchange="renderMonthlyForecast()">
+      </label>
+    </div>
+    <div id="financialAgenda"></div>
+  </div>
+
   <div class="card">
     <div class="section-head"><div><small>CONTAS A PAGAR</small><h3>Resumo por setor</h3></div></div>
     <div id="sectorSummary"></div>
