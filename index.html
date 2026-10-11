@@ -9,12 +9,38 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<div id="loginScreen" class="login-screen">
+  <form id="loginForm" class="login-card">
+    <div class="login-icon">🏗️</div>
+    <small>JC PAVIMENTAÇÃO</small>
+    <h2>Acesso administrativo</h2>
+    <label>E-mail<input id="loginEmail" type="email" autocomplete="username" required></label>
+    <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Entrar</button>
+    <p id="loginMessage"></p>
+  </form>
+</div>
+
+
+<div id="loginScreen" class="login-screen">
+  <form id="loginForm" class="login-card">
+    <div class="login-icon">🏗️</div>
+    <small>JC PAVIMENTAÇÃO</small>
+    <h2>Acesso administrativo</h2>
+    <label>E-mail<input id="loginEmail" type="email" autocomplete="username" required></label>
+    <label>Senha<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Entrar</button>
+    <p id="loginMessage"></p>
+  </form>
+</div>
+
 <header class="topbar">
   <div>
     <small>JC PAVIMENTAÇÃO</small>
     <h1>Administrativo & DRE</h1>
   </div>
-  <button class="ghost" onclick="backup()">Backup</button>
+  <div class="header-actions"><div class="header-actions"><button class="ghost" onclick="backup()">Backup</button><button class="ghost" id="logoutBtn">Sair</button></div><button class="ghost" id="logoutBtn">Sair</button></div>
 </header>
 
 <main>
@@ -220,6 +246,20 @@
   <button onclick="go('obligations')">⚙<span>Obrigações</span></button>
 </nav>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+window.CFG={
+  url:"https://ieylwxaphruoxsprghdm.supabase.co",
+  key:"sb_publishable_cPnCfAdnrCF3AnaTR19A6g_avMH4_nU"
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+window.CFG={
+  url:"https://ieylwxaphruoxsprghdm.supabase.co",
+  key:"sb_publishable_cPnCfAdnrCF3AnaTR19A6g_avMH4_nU"
+};
+</script>
 <script src="app.js"></script>
 </body>
 </html>
