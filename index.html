@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Administrativo JC Pavimentação</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <small>JC PAVIMENTAÇÃO</small>
+    <h1>Administrativo & DRE</h1>
+  </div>
+  <button class="ghost" onclick="backup()">Backup</button>
+</header>
+
+<main>
+<section id="home" class="view active">
+  <div class="hero">
+    <span>PAINEL EXECUTIVO</span>
+    <h2>Financeiro administrativo</h2>
+    <p>Recebimentos, despesas por setor, dívidas, impostos e resultado da empresa.</p>
+  </div>
+
+  <div class="period">
+    <label>Início<input id="dashStart" type="date"></label>
+    <label>Fim<input id="dashEnd" type="date"></label>
+    <button onclick="renderDashboard()">Atualizar</button>
+  </div>
+
+  <div id="kpis" class="kpis"></div>
+
+  <div class="card">
+    <div class="section-head"><div><small>CONTAS A PAGAR</small><h3>Resumo por setor</h3></div></div>
+    <div id="sectorSummary"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-head"><div><small>ATENÇÃO</small><h3>Dívidas vencidas</h3></div></div>
+    <div id="overdueSummary"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-head"><div><small>RECEBÍVEIS</small><h3>Próximos recebimentos</h3></div></div>
+    <div id="receivableDueSummary"></div>
+  </div>
+</section>
+
+<section id="receivables" class="view">
+  <div class="page-head"><h2>Contas a receber</h2><p>Contratos, medições, clientes e valores a receber.</p></div>
+  <div class="card form">
+    <h3 id="receivableFormTitle">Novo recebimento</h3>
+    <div class="grid2">
+      <label>Empresa / Cliente<input id="rCompany" placeholder="Ex.: ViaRondon"></label>
+      <label>Nº do contrato<input id="rContract" placeholder="Ex.: 001/2026"></label>
+    </div>
+    <label>Descrição<input id="rDescription" placeholder="Ex.: Medição de pavimentação"></label>
+    <div class="grid2">
+      <label>Período inicial<input id="rPeriodStart" type="date"></label>
+      <label>Período final<input id="rPeriodEnd" type="date"></label>
+    </div>
+    <div class="grid2">
+      <label>Vencimento<input id="rDue" type="date"></label>
+      <label>Valor (R$)<input id="rAmount" type="number" step="0.01"></label>
+    </div>
+    <div class="grid2">
+      <label>Valor recebido (R$)<input id="rReceived" type="number" step="0.01"></label>
+      <label>Status
+        <select id="rStatus">
+          <option value="pendente">Pendente</option>
+          <option value="parcial">Parcial</option>
+          <option value="recebido">Recebido</option>
+        </select>
+      </label>
+    </div>
+    <label>Observação<textarea id="rNotes" rows="3"></textarea></label>
+    <div class="actions">
+      <button class="primary" onclick="saveReceivable()">Salvar</button>
+      <button id="cancelReceivableEdit" class="secondary hidden" onclick="resetReceivable()">Cancelar edição</button>
+    </div>
+  </div>
+
+  <div class="card filters">
+    <input id="rSearch" placeholder="Buscar empresa/contrato..." oninput="renderReceivables()">
+    <select id="rStatusFilter" onchange="renderReceivables()">
+      <option value="">Todos</option><option value="pendente">Pendente</option><option value="parcial">Parcial</option><option value="recebido">Recebido</option>
+    </select>
+  </div>
+  <div id="receivableList"></div>
+</section>
+
+<section id="payables" class="view">
+  <div class="page-head"><h2>Contas a pagar</h2><p>Despesas separadas por setor e categoria.</p></div>
+  <div class="card form">
+    <h3 id="payableFormTitle">Nova conta a pagar</h3>
+    <div class="grid2">
+      <label>Setor<select id="pSector" onchange="fillPayableCategories()"></select></label>
+      <label>Categoria<select id="pCategory"></select></label>
+    </div>
+    <label>Fornecedor / Favorecido<input id="pVendor" placeholder="Ex.: Posto, locadora, fornecedor"></label>
+    <label>Descrição<input id="pDescription" placeholder="Ex.: Diesel obra Rondon"></label>
+    <div class="grid2">
+      <label>Competência<input id="pCompetence" type="month"></label>
+      <label>1º vencimento<input id="pDue" type="date"></label>
+    </div>
+    <div class="grid2">
+      <label>2º vencimento<input id="pDue2" type="date"></label>
+      <label>Data do pagamento<input id="pPaidDate" type="date"></label>
+    </div>
+    <div class="grid2">
+      <label>Valor (R$)<input id="pAmount" type="number" step="0.01"></label>
+      <label>Status
+        <select id="pStatus"><option value="pendente">Pendente</option><option value="pago">Pago</option></select>
+      </label>
+    </div>
+    <div class="grid2">
+      <label>Obra / Centro de custo<input id="pCostCenter" placeholder="Ex.: Rondon / CSM / Escritório"></label>
+      <label>Nº documento<input id="pDocument" placeholder="NF, boleto, guia..."></label>
+    </div>
+    <label>Observação<textarea id="pNotes" rows="3"></textarea></label>
+    <div class="actions">
+      <button class="primary" onclick="savePayable()">Salvar</button>
+      <button id="cancelPayableEdit" class="secondary hidden" onclick="resetPayable()">Cancelar edição</button>
+    </div>
+  </div>
+
+  <div class="card filters">
+    <input id="pSearch" placeholder="Buscar despesa..." oninput="renderPayables()">
+    <select id="pSectorFilter" onchange="renderPayables()"></select>
+    <select id="pStatusFilter" onchange="renderPayables()">
+      <option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option><option value="atrasado">Atrasado</option>
+    </select>
+  </div>
+  <div id="payableList"></div>
+</section>
+
+
+<section id="dailyPayments" class="view">
+  <div class="page-head">
+    <h2>Pagamentos do dia</h2>
+    <p>Contas com vencimento ou pagamento na data selecionada.</p>
+  </div>
+  <div class="card">
+    <label>Data
+      <input id="dailyPaymentDate" type="date" onchange="renderDailyPayments()">
+    </label>
+    <div id="dailyPaymentKpis" class="kpis"></div>
+  </div>
+  <div class="tabs">
+    <button class="active" onclick="dailyTab='all';renderDailyPayments();activateDailyTab(this)">Todos</button>
+    <button onclick="dailyTab='due';renderDailyPayments();activateDailyTab(this)">Vencem hoje</button>
+    <button onclick="dailyTab='paid';renderDailyPayments();activateDailyTab(this)">Pagos hoje</button>
+    <button onclick="dailyTab='overdue';renderDailyPayments();activateDailyTab(this)">Atrasados</button>
+  </div>
+  <div id="dailyPaymentList"></div>
+</section>
+
+<section id="dre" class="view">
+  <div class="page-head"><h2>DRE Gerencial</h2><p>Receitas, despesas e resultado por competência.</p></div>
+  <div class="period">
+    <label>Início<input id="dreStart" type="date"></label>
+    <label>Fim<input id="dreEnd" type="date"></label>
+    <button onclick="renderDRE()">Atualizar DRE</button>
+  </div>
+  <div id="dreContent"></div>
+</section>
+
+<section id="obligations" class="view">
+  <div class="page-head"><h2>Obrigações & dívidas</h2><p>Empréstimos, financiamentos, impostos e dívidas ativas.</p></div>
+  <div class="tabs">
+    <button class="active" onclick="obTab('loans',this)">Empréstimos</button>
+    <button onclick="obTab('taxes',this)">Impostos</button>
+    <button onclick="obTab('overdue',this)">Dívidas atrasadas</button>
+  </div>
+
+  <div id="obLoans" class="obpane active">
+    <div class="card form">
+      <h3>Novo empréstimo / financiamento</h3>
+      <div class="grid2">
+        <label>Instituição<input id="lInstitution"></label>
+        <label>Contrato<input id="lContract"></label>
+      </div>
+      <div class="grid2">
+        <label>Valor contratado (R$)<input id="lPrincipal" type="number" step="0.01"></label>
+        <label>Saldo devedor (R$)<input id="lBalance" type="number" step="0.01"></label>
+      </div>
+      <div class="grid2">
+        <label>Parcela mensal (R$)<input id="lInstallment" type="number" step="0.01"></label>
+        <label>Próximo vencimento<input id="lDue" type="date"></label>
+      </div>
+      <label>Observação<textarea id="lNotes"></textarea></label>
+      <button class="primary" onclick="saveLoan()">Salvar empréstimo</button>
+    </div>
+    <div id="loanList"></div>
+  </div>
+
+  <div id="obTaxes" class="obpane">
+    <div class="card">
+      <h3>Impostos e encargos cadastráveis em Contas a Pagar</h3>
+      <p class="muted">FGTS, INSS, DARF, ISS, IRPJ, CSLL, PIS, COFINS, Simples Nacional, taxas e outros.</p>
+      <button class="primary" onclick="go('payables');pSector.value='Impostos';fillPayableCategories()">Lançar imposto</button>
+    </div>
+  </div>
+
+  <div id="obOverdue" class="obpane">
+    <div id="overdueList"></div>
+  </div>
+</section>
+</main>
+
+<nav class="bottom-nav six">
+  <button onclick="go('home')">⌂<span>Início</span></button>
+  <button onclick="go('receivables')">↙<span>Receber</span></button>
+  <button class="plus" onclick="go('payables')">＋</button>
+  <button onclick="go('dailyPayments')">✓<span>Pagamentos</span></button>
+  <button onclick="go('dre')">📊<span>DRE</span></button>
+  <button onclick="go('obligations')">⚙<span>Obrigações</span></button>
+</nav>
+
+<script src="app.js"></script>
+</body>
+</html>
